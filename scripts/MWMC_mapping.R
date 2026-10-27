@@ -101,8 +101,16 @@ leaflet() %>%
 
 #Data Quantity ####
   
+  #how many different studies contributed cores 
+
+studyCores <- cores %>%
+  count(study_id) %>%
+  rename(core_count = n)
+
    #How many soil cores were sampled per watershed?
 view(cores_per_watershed)
+
+ 
 
    #How many soil cores were sampled per 100ha of marsh habitat within each watershed?
 
@@ -181,11 +189,75 @@ corePanels
 wetland_area <- read_csv("blue_carbon_data_inventory/data/wetland_area/state_wetland_area.csv")
   
  core_quality <- cores %>%
-   filter(stocks_qual_code == "C1" | 
-            dates_qual_code == "B1" | 
-            elevation_qual_code %in% c("A1", "A2"))
-#need to ask more about what these codes mean and how to distinguish good vs. great cores 
+   mutate(stock_qual = case_when(
+     stocks_qual_code == "C1" ~ "Best",
+     stocks_qual_code == "C2" ~ "Good",
+     TRUE ~ NA)) %>%
+   mutate(dates_qual = case_when(
+     dates_qual_code == "B1" ~ "Best",
+     dates_qual_code == "B2" ~ "Good",
+     TRUE       ~ NA)) %>%
+   mutate(elev_qual = case_when(
+     elevation_qual_code == "A1" ~ "Best",
+     elevation_qual_code == "A2" ~ "Best",
+     elevation_qual_code == "A3" ~ "Good",
+     TRUE       ~ NA)) 
+ 
+ utility_long <- core_quality %>%
+   pivot_longer(
+     cols = c(stock_qual, dates_qual, elev_qual),
+     names_to = "category",
+     values_to = "rating") %>%
+   filter(!is.na(rating), tolower(rating) != "na")
+ 
+ # Plot percentages
+ #this graph makes sense but i think having the actual number of cores shown is more powerful 
+ ggplot(utility_long, aes(x = category, fill = rating)) +
+   geom_bar(position = "fill") +
+   scale_y_continuous(labels = scales::percent) +
+   scale_fill_manual(
+     values = c("Good" = "lightblue", "Best" = "lightpink"),
+     labels = c("Good", "Best")) +
+   labs(
+     x = "Data Utility",
+     y = "Percentage of classified cores",
+     fill = "Completeness and Quality", 
+     title = "Maryland Core Utility, Completeness, and Quality Percentages") +
+   theme_minimal()
 
+#plot by number of cores 
+ utility_counts <- utility_long %>%
+   count(category, rating)
+ 
+ utility_counts <- utility_counts %>%
+   mutate(category = factor(category,
+       levels = c("stock_qual", "dates_qual", "elev_qual"),
+       labels = c(
+         "Stock\nAssessment",
+         "Carbon\nAccretion\nRates",
+         "Carbon\nSequestration\nModeling")))
+ 
+ ggplot(utility_counts,
+        aes(x = category, y = n, fill = rating)) +
+   geom_col(width = 0.7) +
+   scale_fill_manual(
+     values = c(
+       "Good" = "lightblue",
+       "Best" = "lightpink"),
+     breaks = c("Good", "Best"),
+     labels = c("Good", "Best"),
+     name = "Completeness\nand Quality") +
+   labs(
+     title = "Maryland Core Utility, Completeness, and Quality",
+     x = "Data Utility",
+     y = "Number of cores") +
+   theme_minimal() +
+   theme(
+     plot.title = element_text(face = "bold"),
+     axis.title = element_text(face = "bold"),
+     panel.grid.major.x = element_blank())
+ 
+ 
 #Habitat Representativeness ####
   
   #What habitats have been sampled and how well do these sampling efforts reflect the extent of different coastal wetland habitats in this state?
